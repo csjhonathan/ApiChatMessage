@@ -26,12 +26,11 @@ mongoClient.connect()
         console.log(err, chalk.red('DB CONNECTION FAILED'));
     });
 
-// app.get('/participants', (req, res) => {
-//     db.collection('participants').find().toArray()
-//         .then(users => res.send(users))
-//         .catch(err => res.send(err.message));
-    
-// });
+app.get('/participants', (req, res) => {
+    db.collection('participants').find().toArray()
+        .then(users => res.send(users))
+        .catch(err => res.send(err.message));
+});
 
 
 // app.get('/messages', (req, res) => {
@@ -43,6 +42,9 @@ mongoClient.connect()
 
 app.post('/participants', (req, res) => {
     const {name} = req.body;
+    if(typeof name !== 'string'){
+        return res.status(422).send({message : 'Nome deve conter APENAS letras e numeros'});
+    }
     if(!name){
         res.status(422).send({message : 'Nome não pode ser vazio'});
         return;
@@ -60,7 +62,7 @@ app.post('/participants', (req, res) => {
                             time: dayjs().format('HH:mm:ss')
                         };
                         db.collection('messages').insertOne(statusMessage)
-                            .then(()=> console.log('Status message inserted'))
+                            .then(()=> console.log('Novo usuário cadastrado'))
                             .catch(err => console.log(err));
                         res.status(201).send({message : 'Novo usuário cadastrado'});
                     })
@@ -73,11 +75,47 @@ app.post('/participants', (req, res) => {
 });
 
 
-// app.post('/messages', (req, res) => {
-//     db.collection('messages').find().toArray()
-//         .then(users => res.send(users))
-//         .catch(err => res.send(err.message));
-// });
+app.post('/messages', (req, res) => {
+
+    const messageTypes = ['message', 'private_message'];
+    const from = req.headers.user;
+    const {to, text, type} = req.body;
+
+    if(!from || !text || !type || !to || !messageTypes.includes(type)){
+        return res.status(422).send({message : 'Campo body/headers é inválido. Verifique todos os dados'});
+    }
+
+    db.collection('participants').find({ name : from}).toArray()
+        .then( user => {
+            if(!user.length){
+                return res.status(422).send({message : 'Você não está logado'});
+            }
+            const message = {
+                to,
+                text,
+                type,
+                from,
+                time : dayjs().format('HH:mm:ss')
+            };
+            db.collection('messages').insertOne(message)
+                .then(() => {
+                    return res.status(201).send({message : 'mensagem enviada'});
+                })
+                .catch((err)=> {
+                    console.log(err);
+                    return res.sendStatus(500);
+                });            
+        })
+        .catch((err)=> {
+            console.log(err);
+            return res.sendStatus(500);
+        });   
+    console.log(from, to, text, type);
+    return;
+    // db.collection('messages').find().toArray()
+    //     .then(users => res.send(users))
+    //     .catch(err => res.send(err.message));
+});
 
 // app.post('/status', (req, res) => {
 //     db.collection('status').find().toArray()
