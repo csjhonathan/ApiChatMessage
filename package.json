@@ -5,7 +5,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "nodemon ./src/app.js"
+    "start": "nodemon ./src/app.js",
+    "dev" : "mongod --dbpath ~/.mongo"
   },
   "repository": {
     "type": "git",
