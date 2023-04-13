@@ -33,18 +33,35 @@ app.get('/participants', (req, res) => {
 });
 
 
-// app.get('/messages', (req, res) => {
-//     db.collection('messages').find().toArray()
-//         .then(users => res.send(users))
-//         .catch(err => res.send(err.message));
-// });
+app.get('/messages', (req, res) => {
+    const USER = req.headers.user;
+    const {limit} = req.query;
+    db.collection('messages').find().toArray()
+        .then(messages =>{
+            console.log(messages);
+            const seenMessages = messages.filter((message) => {
+                if(USER === message.to || USER === message.from || message.to === 'Todos'){
+                    return message;
+                }
+            });
+
+            if(!limit){
+                return res.send(seenMessages);
+            }
+            if(limit > 0 && limit < messages.length) {
+                return res.send( seenMessages.slice(-limit));
+            }
+            return res.status(422).send('Limit tem um valor inválido');
+        })
+        .catch(err => res.send(err.message));
+});
 
 
 app.post('/participants', (req, res) => {
     const {name} = req.body;
-    if(typeof name !== 'string'){
-        return res.status(422).send({message : 'Nome deve conter APENAS letras e numeros'});
-    }
+    // if(typeof name !== 'string'){
+    //     return res.status(422).send({message : 'Nome deve conter APENAS letras e numeros'});
+    // }
     if(!name){
         res.status(422).send({message : 'Nome não pode ser vazio'});
         return;
