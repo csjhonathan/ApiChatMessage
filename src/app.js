@@ -32,15 +32,13 @@ app.get('/participants', (req, res) => {
         .catch(err => res.send(err.message));
 });
 
-
 app.get('/messages', (req, res) => {
     const USER = req.headers.user;
     const {limit} = req.query;
     db.collection('messages').find().toArray()
         .then(messages =>{
-            console.log(messages);
             const seenMessages = messages.filter((message) => {
-                if(USER === message.to || USER === message.from || message.to === 'Todos'){
+                if(USER === message.to || USER === message.from || message.to === 'Todos' || message.type === 'status'){
                     return message;
                 }
             });
@@ -56,12 +54,8 @@ app.get('/messages', (req, res) => {
         .catch(err => res.send(err.message));
 });
 
-
 app.post('/participants', (req, res) => {
     const {name} = req.body;
-    // if(typeof name !== 'string'){
-    //     return res.status(422).send({message : 'Nome deve conter APENAS letras e numeros'});
-    // }
     if(!name){
         res.status(422).send({message : 'Nome não pode ser vazio'});
         return;
@@ -90,7 +84,6 @@ app.post('/participants', (req, res) => {
         })
         .catch(err => res.send(err));
 });
-
 
 app.post('/messages', (req, res) => {
 
@@ -134,9 +127,55 @@ app.post('/messages', (req, res) => {
     //     .catch(err => res.send(err.message));
 });
 
-// app.post('/status', (req, res) => {
-//     db.collection('status').find().toArray()
-//         .then(users => res.send(users))
-//         .catch(err => res.send(err.message));
-//     console.log(req.body);
-// });
+app.post('/status', (req, res) => {
+    const name = req.headers.user;
+    if(!name){
+        return res.status(404).send({message : 'Não foi possível manter o usuário logado'});
+    }
+    db.collection('participants').find({name}).toArray()
+        .then(user => {
+            const [USER] = user;
+            const name = USER.name;
+            if(USER){
+                db.collection('participants').updateOne({name}, {
+                    $set : {
+                        lastStatus : Date.now()
+                    }
+                });
+                return res.status(200).send({message : 'Usuário online'});
+            }
+            return res.status(400).send({message : 'Usuário não encontrado'});
+        });
+});
+
+const keepLogin = setInterval(() => {
+    const now = Date.now();
+    const maxUpdateTime = 10000;    
+    
+    db.collection('participants').find().toArray()
+        .then(users => {
+            users.forEach(({lastStatus, name}) =>{
+                if(now - lastStatus >= maxUpdateTime || !lastStatus){
+                    db.collection('participants').deleteOne( { name } )
+                        .then(()=> {
+                            const exitMessage ={
+                                from: name,
+                                to: 'Todos', 
+                                text: 'sai da sala...', 
+                                type: 'status', 
+                                time: dayjs().format('HH:mm:ss')
+                            };
+                            db.collection('messages').insertOne(exitMessage)
+                                .then(() => {
+                                    console.log(chalk.red(`${name} foi removido pois estava offline`));
+                                    return;
+                                })
+                                .catch((err)=> {
+                                    console.log(err);
+                                    return;
+                                }); 
+                        });
+                }
+            });
+        });
+}, 15000 );
