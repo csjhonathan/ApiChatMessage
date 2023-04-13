@@ -35,6 +35,7 @@ app.get('/participants', (req, res) => {
 app.get('/messages', (req, res) => {
     const USER = req.headers.user;
     const {limit} = req.query;
+    console.log(limit);
     db.collection('messages').find().toArray()
         .then(messages =>{
             const seenMessages = messages.filter((message) => {
@@ -42,24 +43,28 @@ app.get('/messages', (req, res) => {
                     return message;
                 }
             });
-
             if(!limit){
                 return res.send(seenMessages);
             }
-            if(limit > 0 && limit < messages.length) {
+            
+            if( limit > 0 && !Number.isNaN(Number(limit))) {
                 return res.send( seenMessages.slice(-limit));
             }
+        
             return res.status(422).send('Limit tem um valor inválido');
         })
         .catch(err => res.send(err.message));
 });
 
 app.post('/participants', (req, res) => {
+
     const {name} = req.body;
+    console.log(name);
     if(!name){
         res.status(422).send({message : 'Nome não pode ser vazio'});
         return;
     }
+    
     db.collection('participants').find({name}).toArray()
         .then(user => {
             if(!user.length){
@@ -135,6 +140,7 @@ app.post('/status', (req, res) => {
     db.collection('participants').find({name}).toArray()
         .then(user => {
             const [USER] = user;
+            if(!USER) return res.status(404).send({message : 'Usuário não encontrado'});
             const name = USER.name;
             if(USER){
                 db.collection('participants').updateOne({name}, {
@@ -144,7 +150,7 @@ app.post('/status', (req, res) => {
                 });
                 return res.status(200).send({message : 'Usuário online'});
             }
-            return res.status(400).send({message : 'Usuário não encontrado'});
+            
         });
 });
 
