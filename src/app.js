@@ -35,7 +35,6 @@ app.get('/participants', (req, res) => {
 app.get('/messages', (req, res) => {
     const USER = req.headers.user;
     const {limit} = req.query;
-    console.log(limit);
     db.collection('messages').find().toArray()
         .then(messages =>{
             const seenMessages = messages.filter((message) => {
@@ -127,9 +126,6 @@ app.post('/messages', (req, res) => {
         });   
     console.log(from, to, text, type);
     return;
-    // db.collection('messages').find().toArray()
-    //     .then(users => res.send(users))
-    //     .catch(err => res.send(err.message));
 });
 
 app.post('/status', (req, res) => {
@@ -154,14 +150,15 @@ app.post('/status', (req, res) => {
         });
 });
 
-const keepLogin = setInterval(() => {
-    const now = Date.now();
-    const maxUpdateTime = 10000;    
+// app.delete('/messages/:ID_DA_MENSAGEM', (req, res) => {
     
+// });
+const keepLogin = setInterval(() => {
+    const maxUpdateTime = 10000;    
     db.collection('participants').find().toArray()
         .then(users => {
             users.forEach(({lastStatus, name}) =>{
-                if(now - lastStatus >= maxUpdateTime || !lastStatus){
+                if(Date.now() - lastStatus >= maxUpdateTime || !lastStatus){
                     db.collection('participants').deleteOne( { name } )
                         .then(()=> {
                             const exitMessage ={
@@ -185,3 +182,5 @@ const keepLogin = setInterval(() => {
             });
         });
 }, 15000 );
+
+console.log(keepLogin);
