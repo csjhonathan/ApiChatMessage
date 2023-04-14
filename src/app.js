@@ -115,15 +115,16 @@ app.post( '/messages', async( req, res ) => {
     const {to, text, type} = req.body;
 
     const receiverValidation = userSchema.validate( {name: to} );
-    const textValidation = messageSchema.validate( {text} );
+    const textValidationSanitize = messageSchema.validate( {text} );
+    const textTrimed = messageSchema.validate( {text : textValidationSanitize.value.text} );
     
 
     const VALIDY_TYPE = ['message', 'private_message'].some( ty => ty=== type );
     const from = req.headers.user;
     const userValidation = userSchema.validate( {name : from} );
 
-    if( receiverValidation.error || textValidation.error || userValidation.error || !VALIDY_TYPE ){
-        console.log( receiverValidation, textValidation, userValidation );
+    if( receiverValidation.error || textTrimed.error || userValidation.error || !VALIDY_TYPE ){
+        console.log( receiverValidation, textTrimed, userValidation );
         return res.status( 422 ).send( {message : 'Campo body inválido'} );
     }   
 
@@ -140,7 +141,7 @@ app.post( '/messages', async( req, res ) => {
     try{
         const message = {
             to : receiverValidation.value.name,
-            text : textValidation.value.text,
+            text : textTrimed.value.text,
             type,
             from,
             time : dayjs().format( 'HH:mm:ss' )
