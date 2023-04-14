@@ -6,7 +6,7 @@ import dotenv from 'dotenv';
 import { MongoClient, ObjectId } from 'mongodb';
 import dayjs from 'dayjs';
 import userSchema from './constants/joi-validations/userSchema.js';
-
+import joiPlus from 'joi-plus';
 dotenv.config();
 const app = express();
 app.listen( PORT, () => console.log( `Server is running on ${chalk.green( `http://localhost:${PORT}` )}` ) );
@@ -72,11 +72,13 @@ app.get( '/messages', async( req, res ) => {
 app.post( '/participants', async( req, res ) => {
 
     const {name} = req.body;
-    if( !name ){
-        res.status( 422 ).send( {message : 'Nome não pode ser vazio'} );
+    const validation = userSchema.validate( {name} );
+    
+    if( validation.error ){
+        res.status( 422 ).send( {message : validation.error.details[0].message } );
         return;
     }
-
+    
     try{
         const participant = await db.collection( 'participants' ).findOne( {name} );
         if( participant ) return  res.status( 409 ).send( {message : 'Usuário já cadastrado'} );
@@ -199,6 +201,30 @@ app.put( '/messages/:ID_DA_MENSAGEM', async( req, res ) => {
     } 
     res.status( 204 ).send( {message : 'Mensagem atualizada'} );
 } );
+
+app.delete( '/messages/:ID_DA_MENSAGEM', async( req, res ) => {
+    console.log( 'entrou' );
+    if( !req.headers.user ) return res.status( 422 ).send( {message : 'Campo headers inválido'} );
+
+    const {ID_DA_MENSAGEM} =  req.params;
+    const from = req.headers.user;
+    
+    try{
+        const participant = await db.collection( 'participants' ).findOne( {name : from} );
+        if( !participant ) return res.status( 422 ).send( {message : 'Você está offline'} );
+
+        const message = await db.collection( 'messages' ).findOne( {_id : new ObjectId( ID_DA_MENSAGEM )} );
+        if( !message ) return res.status( 404 ).send( {message : 'Mensagem não encontrada'} );
+        if( message.from !== from ) return res.status( 401 ).send( {message : 'Este usuário não é não pode editar esta mensagem!'} );
+
+        const result = await db.collection( 'messages' ).deleteOne( {_id : new ObjectId( ID_DA_MENSAGEM )} );
+
+        if( !result.deletedCount ) return res.status( 404 ).send( {message : 'Mensagem não encontrada'} );
+    }catch( err ){
+        return res.status( 500 ).send( err );
+    } 
+    res.status( 204 ).send( {message : 'Mensagem deletada com sucesso'} );
+} );
 const keepLogin = setInterval( async () => {
     const maxUpdateTime = 10000;  
     const users = {offline : null};
@@ -218,7 +244,7 @@ const keepLogin = setInterval( async () => {
     }catch( err ){
         console.log( err );
     }
-    console.log( users.offline );
+
     users.offline.forEach( async ( { name } ) =>{
 
         try{
