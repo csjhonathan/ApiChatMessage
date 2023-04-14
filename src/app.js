@@ -9,7 +9,9 @@ import userSchema from './constants/joi-validations/userSchema.js';
 import messageSchema from './constants/joi-validations/messageSchema.js';
 
 dotenv.config();
+
 const app = express();
+
 app.listen( PORT, () => console.log( `Server is running on ${chalk.green( `http://localhost:${PORT}` )}` ) );
 app
     .use( cors() )
