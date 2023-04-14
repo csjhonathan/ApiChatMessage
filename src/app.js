@@ -3,9 +3,9 @@ import cors from 'cors';
 import PORT from './constants/PORT.js';
 import chalk from 'chalk';
 import dotenv from 'dotenv';
-import { MongoClient } from 'mongodb';
+import { MongoClient, ObjectId } from 'mongodb';
 import dayjs from 'dayjs';
-
+import userSchema from './constants/joi-validations/userSchema.js';
 
 dotenv.config();
 const app = express();
@@ -39,6 +39,14 @@ app.get( '/messages', async( req, res ) => {
     const USER = req.headers.user;
     const {limit} = req.query;
     const publicTypes = ['message', 'status'];
+
+    try{
+        const participant = await db.collection( 'participants' ).findOne( {name : USER} );
+        if( !participant ) return res.status( 422 ).send( {message : 'Você está offline'} );
+    }catch( err ){
+        res.sendStatus( 500 );
+    }
+
     try{
         const messages = await db.collection( 'messages' ).find().toArray();
         const filteredMessages = messages.filter( ( message ) => {
@@ -159,37 +167,79 @@ app.post( '/status', async( req, res ) => {
     }
 } );
 
-// app.delete('/messages/:ID_DA_MENSAGEM', (req, res) => {
-    
-// });
-const keepLogin = setInterval( () => {
-    const maxUpdateTime = 10000;    
-    db.collection( 'participants' ).find().toArray()
-        .then( users => {
-            users.forEach( ( {lastStatus, name} ) =>{
-                if( Date.now() - lastStatus >= maxUpdateTime || !lastStatus ){
-                    db.collection( 'participants' ).deleteOne( { name } )
-                        .then( ()=> {
-                            const exitMessage ={
-                                from: name,
-                                to: 'Todos', 
-                                text: 'sai da sala...', 
-                                type: 'status', 
-                                time: dayjs().format( 'HH:mm:ss' )
-                            };
-                            db.collection( 'messages' ).insertOne( exitMessage )
-                                .then( () => {
-                                    console.log( chalk.red( `${name} foi removido pois estava offline` ) );
-                                    return;
-                                } )
-                                .catch( ( err )=> {
-                                    console.log( err );
-                                    return;
-                                } ); 
-                        } );
-                }
-            } );
-        } );
-}, 15000 );
+app.put( '/messages/:ID_DA_MENSAGEM', async( req, res ) => {
 
-console.log( keepLogin );
+    if( !req.headers.user ) return res.status( 422 ).send( {message : 'Campo headers inválido'} );
+
+    const {ID_DA_MENSAGEM} =  req.params;
+    const {to, text, type} = req.body;
+    const VALIDY_TYPES = ['message', 'private_message'];
+    const from = req.headers.user;
+    
+    if( !to || !text || !VALIDY_TYPES.includes( type ) ){
+        return res.status( 422 ).send( {message : 'Campo body inválido'} );
+    }   
+    
+    try{
+        const participant = await db.collection( 'participants' ).findOne( {name : from} );
+        if( !participant ) return res.status( 422 ).send( {message : 'Você está offline'} );
+
+        const message = await db.collection( 'messages' ).findOne( {_id : new ObjectId( ID_DA_MENSAGEM )} );
+        if( !message ) return res.status( 404 ).send( {message : 'Mensagem não encontrada'} );
+        if( message.from !== from ) return res.status( 401 ).send( {message : 'Este usuário não é não pode editar esta mensagem!'} );
+
+        const result = await db.collection( 'messages' ).updateOne(
+            {_id : new ObjectId( ID_DA_MENSAGEM )},
+            {$set : {to, text, type}}
+        );
+
+        if( !result.matchedCount ) return res.status( 404 ).send( {message : 'Mensagem não encontrada'} );
+    }catch( err ){
+        return res.status( 500 ).send( err );
+    } 
+    res.status( 204 ).send( {message : 'Mensagem atualizada'} );
+} );
+const keepLogin = setInterval( async () => {
+    const maxUpdateTime = 10000;  
+    const users = {offline : null};
+
+    try{
+        users.offline =  await db.collection( 'participants' ).find( { lastStatus: { $lt: Date.now() - maxUpdateTime } } ).toArray(); 
+    }catch( err ){
+        console.log( err );
+    }
+
+    try{
+        await db.collection( 'participants' ).find( { lastStatus: { $lt: Date.now() - maxUpdateTime } } ).toArray();
+        if( !users.offline.length ) {
+            return console.log( chalk.blue( 'No offline users' ) );
+        }
+        console.log( chalk.green( 'Offline users finded' ) );
+    }catch( err ){
+        console.log( err );
+    }
+    console.log( users.offline );
+    users.offline.forEach( async ( { name } ) =>{
+
+        try{
+            await db.collection( 'participants' ).deleteOne( { name } );
+            console.log( chalk.red( `${name} foi removido pois estava offline` ) );
+        }catch( err ){
+            console.log( err );
+        }
+        
+        try{
+            const exitMessage ={
+                from: name,
+                to: 'Todos', 
+                text: 'sai da sala...', 
+                type: 'status', 
+                time: dayjs().format( 'HH:mm:ss' )
+            };
+            await db.collection( 'messages' ).insertOne( exitMessage );
+        }catch( err ){
+            console.log( err );
+        }
+    }
+    );
+}, 15000 );
