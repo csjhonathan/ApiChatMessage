@@ -1,11 +1,18 @@
 import Joi from 'joi';
+import sanitize from 'sanitize-html';
+
 const userSchema = Joi.object( {
     name : Joi
         .string()
-        .min( 3 )
-        .max( 20 )
+        .custom( ( value, helpers ) => {
+            const sanitizedName = sanitize( value, {
+                allowedTags: [],
+                allowedAttributes: {}
+            } );
+            return sanitizedName;
+        } )
         .required()
-        .pattern( new RegExp( '^[a-zA-Z0-9_\\-_@.áéíóúÁÉÍÓÚñÑ ]{3,30}$' ) )
+        .trim( true )
 } );
 
 export default userSchema;
