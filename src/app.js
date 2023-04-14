@@ -116,7 +116,7 @@ app.post( '/messages', async( req, res ) => {
 
     const receiverValidation = userSchema.validate( {name: to} );
     const textValidation = messageSchema.validate( {text} );
-
+    
 
     const VALIDY_TYPE = ['message', 'private_message'].some( ty => ty=== type );
     const from = req.headers.user;
@@ -139,8 +139,8 @@ app.post( '/messages', async( req, res ) => {
     
     try{
         const message = {
-            to,
-            text,
+            to : receiverValidation.value.name,
+            text : textValidation.value.text,
             type,
             from,
             time : dayjs().format( 'HH:mm:ss' )

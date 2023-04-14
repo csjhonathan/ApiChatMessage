@@ -6,11 +6,11 @@ const messageSchema = Joi.object( {
         .string()
         .required()
         .custom( ( value, helpers ) => {
-            const sanitizedName = sanitize( value, {
+            const sanitizedMessage = sanitize( value, {
                 allowedTags: [],
                 allowedAttributes: {}
             } );
-            return sanitizedName;
+            return sanitizedMessage;
         } )
         .trim( true )
 } );
