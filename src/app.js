@@ -8,7 +8,6 @@ import dayjs from 'dayjs';
 import userSchema from './constants/joi-validations/userSchema.js';
 import messageSchema from './constants/joi-validations/messageSchema.js';
 
-
 dotenv.config();
 const app = express();
 app.listen( PORT, () => console.log( `Server is running on ${chalk.green( `http://localhost:${PORT}` )}` ) );
@@ -72,15 +71,13 @@ app.get( '/messages', async( req, res ) => {
 } );
 
 app.post( '/participants', async( req, res ) => {
-
-    const {name} = req.body;
-    const validation = userSchema.validate( {name} );
-    
-    if( validation.error ){
-        res.status( 422 ).send( {message : validation.error.details[0].message } );
+    const {error, value} = userSchema.validate ( {name : req.body.name} );
+    console.log( error );
+    if( error ){
+        res.status( 422 ).send( {message : error.details[0].message } );
         return;
     }
-    
+    const {name} = value;
     try{
         const participant = await db.collection( 'participants' ).findOne( {name} );
         if( participant ) return  res.status( 409 ).send( {message : 'Usuário já cadastrado'} );
@@ -157,6 +154,7 @@ app.post( '/messages', async( req, res ) => {
 
 app.post( '/status', async( req, res ) => {
     const name = req.headers.user;
+    
     if( !name ){
         return res.status( 404 ).send( {message : 'Não foi possível manter o usuário logado'} );
     }
@@ -242,7 +240,6 @@ app.delete( '/messages/:ID_DA_MENSAGEM', async( req, res ) => {
     res.status( 200 ).send( {message : 'Mensagem deletada com sucesso'} );
 } );
 
-/*eslint-disable no-unused-vars*/
 const keepLogin = setInterval( async () => {
     const maxUpdateTime = 10000;  
     const users = {offline : null};

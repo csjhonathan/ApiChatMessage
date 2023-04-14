@@ -30,6 +30,9 @@ module.exports = {
         'space-in-parens': [
             'error', 
             'always'
+        ],
+        'no-unused-vars' : [
+            'off'
         ]
     }
 };
