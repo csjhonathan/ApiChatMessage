@@ -6,7 +6,9 @@ import dotenv from 'dotenv';
 import { MongoClient, ObjectId } from 'mongodb';
 import dayjs from 'dayjs';
 import userSchema from './constants/joi-validations/userSchema.js';
-import joiPlus from 'joi-plus';
+import messageSchema from './constants/joi-validations/messageSchema.js';
+
+
 dotenv.config();
 const app = express();
 app.listen( PORT, () => console.log( `Server is running on ${chalk.green( `http://localhost:${PORT}` )}` ) );
@@ -110,12 +112,21 @@ app.post( '/participants', async( req, res ) => {
 
 app.post( '/messages', async( req, res ) => {
 
-    const messageTypes = ['message', 'private_message'];
-    const from = req.headers.user;
+    if( !req.headers.user ) return res.status( 422 ).send( {message : 'Campo headers inválido'} );
     const {to, text, type} = req.body;
-    if( !from || !text || !type || !to || !messageTypes.includes( type ) ){
-        return res.status( 422 ).send( {message : 'Campo body/headers é inválido. Verifique todos os dados'} );
-    }
+
+    const receiverValidation = userSchema.validate( {name: to} );
+    const textValidation = messageSchema.validate( {text} );
+
+
+    const VALIDY_TYPE = ['message', 'private_message'].some( ty => ty=== type );
+    const from = req.headers.user;
+    const userValidation = userSchema.validate( {name : from} );
+
+    if( receiverValidation.error || textValidation.error || userValidation.error || !VALIDY_TYPE ){
+        console.log( receiverValidation, textValidation, userValidation );
+        return res.status( 422 ).send( {message : 'Campo body inválido'} );
+    }   
 
     try{
         const user = await db.collection( 'participants' ).findOne( { name : from} );
@@ -175,10 +186,16 @@ app.put( '/messages/:ID_DA_MENSAGEM', async( req, res ) => {
 
     const {ID_DA_MENSAGEM} =  req.params;
     const {to, text, type} = req.body;
-    const VALIDY_TYPES = ['message', 'private_message'];
+
+    const receiverValidation = userSchema.validate( {name: to} );
+    const textValidation = messageSchema.validate( {text} );
+
+
+    const VALIDY_TYPE = ['message', 'private_message'].some( ty => ty=== type );
     const from = req.headers.user;
-    
-    if( !to || !text || !VALIDY_TYPES.includes( type ) ){
+    const userValidation = userSchema.validate( {name : from} );
+
+    if( receiverValidation.error || textValidation.error || userValidation.error || !VALIDY_TYPE ){
         return res.status( 422 ).send( {message : 'Campo body inválido'} );
     }   
     
@@ -199,11 +216,10 @@ app.put( '/messages/:ID_DA_MENSAGEM', async( req, res ) => {
     }catch( err ){
         return res.status( 500 ).send( err );
     } 
-    res.status( 204 ).send( {message : 'Mensagem atualizada'} );
+    res.status( 200 ).send( {message : 'Mensagem atualizada'} );
 } );
 
 app.delete( '/messages/:ID_DA_MENSAGEM', async( req, res ) => {
-    console.log( 'entrou' );
     if( !req.headers.user ) return res.status( 422 ).send( {message : 'Campo headers inválido'} );
 
     const {ID_DA_MENSAGEM} =  req.params;
@@ -223,8 +239,10 @@ app.delete( '/messages/:ID_DA_MENSAGEM', async( req, res ) => {
     }catch( err ){
         return res.status( 500 ).send( err );
     } 
-    res.status( 204 ).send( {message : 'Mensagem deletada com sucesso'} );
+    res.status( 200 ).send( {message : 'Mensagem deletada com sucesso'} );
 } );
+
+/*eslint-disable no-unused-vars*/
 const keepLogin = setInterval( async () => {
     const maxUpdateTime = 10000;  
     const users = {offline : null};
