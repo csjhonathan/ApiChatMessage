@@ -9,25 +9,21 @@ import userSchema from './constants/joi-validations/userSchema.js';
 import messageSchema from './constants/joi-validations/messageSchema.js';
 
 dotenv.config();
-
 const app = express();
-
-app.listen( PORT, () => console.log( `Server is running on ${chalk.green( `http://localhost:${PORT}` )}` ) );
 app
     .use( cors() )
     .use( express.json() );
 
 const mongoClient = new  MongoClient( process.env.DATABASE_URL );
-let db;
-    
-mongoClient.connect()
-    .then( () => {
-        db = mongoClient.db();
-        console.log( chalk.blue( 'DB CONNECTION SUCCESSFULLY' ) );
-    } )
-    .catch( ( err ) => {
-        console.log( err, chalk.red( 'DB CONNECTION FAILED' ) );
-    } );
+
+try{
+    await mongoClient.connect();
+    console.log( chalk.blue( 'DB CONNECTION SUCCESSFULLY' ) );
+}catch( err ){
+    console.log( err, chalk.red( 'DB CONNECTION FAILED' ) );
+}
+
+const db = mongoClient.db();
 
 app.get( '/participants', async( req, res ) => {
     try{
@@ -74,7 +70,7 @@ app.get( '/messages', async( req, res ) => {
 
 app.post( '/participants', async( req, res ) => {
     const {error, value} = userSchema.validate ( {name : req.body.name} );
-    console.log( error );
+
     if( error ){
         res.status( 422 ).send( {message : error.details[0].message } );
         return;
@@ -250,29 +246,18 @@ const keepLogin = setInterval( async () => {
     try{
         users.offline =  await db.collection( 'participants' ).find( { lastStatus: { $lt: Date.now() - maxUpdateTime } } ).toArray(); 
     }catch( err ){
-        console.log( err );
-    }
+        return console.log( chalk.red( `${err.message}` ) );
+    } 
 
-    try{
-        await db.collection( 'participants' ).find( { lastStatus: { $lt: Date.now() - maxUpdateTime } } ).toArray();
-        if( !users.offline.length ) {
-            return console.log( chalk.blue( 'No offline users' ) );
-        }
-        console.log( chalk.green( 'Offline users finded' ) );
-    }catch( err ){
-        console.log( err );
+    if( !users.offline.length ) {
+        return console.log( chalk.blue( 'No offline users' ) );
     }
 
     users.offline.forEach( async ( { name } ) =>{
 
         try{
             await db.collection( 'participants' ).deleteOne( { name } );
-            console.log( chalk.red( `${name} foi removido pois estava offline` ) );
-        }catch( err ){
-            console.log( err );
-        }
-        
-        try{
+
             const exitMessage ={
                 from: name,
                 to: 'Todos', 
@@ -281,9 +266,12 @@ const keepLogin = setInterval( async () => {
                 time: dayjs().format( 'HH:mm:ss' )
             };
             await db.collection( 'messages' ).insertOne( exitMessage );
+            console.log( chalk.red( `${name} foi removido pois estava offline` ) );
         }catch( err ){
-            console.log( err );
+            return console.log( chalk.red( `${err.message}` ) );
         }
     }
     );
 }, 15000 );
+
+app.listen( PORT, () => console.log( `Server is running on ${chalk.green( `http://localhost:${PORT}` )}` ) );
