@@ -19,11 +19,39 @@ const mongoClient = new  MongoClient( process.env.DATABASE_URL );
 try{
     await mongoClient.connect();
     console.log( chalk.blue( 'DB CONNECTION SUCCESSFULLY' ) );
+    setInterval( deleteAfk, 15000 );
 }catch( err ){
-    console.log( err, chalk.red( 'DB CONNECTION FAILED' ) );
+    console.log( err.message, chalk.red( 'DB CONNECTION FAILED' ) );
 }
 
 const db = mongoClient.db();
+
+async function deleteAfk(){
+    const maxUpdateTime = 10000;  
+
+    try{
+        const offline =  await db.collection( 'participants' ).find( { lastStatus: { $lt: Date.now() - maxUpdateTime } } ).toArray(); 
+
+        if( !offline.length ) {
+            return console.log( chalk.blue( 'No offline users' ) );
+        }
+
+        const exitMessages = offline.map( ( {name} ) => {
+            return( {
+                from: name,
+                to: 'Todos', 
+                text: 'sai da sala...', 
+                type: 'status', 
+                time: dayjs().format( 'HH:mm:ss' )
+            } );
+        } );
+
+        await db.collection( 'participants' ).deleteMany( { lastStatus: { $lt: Date.now() - maxUpdateTime } } );
+        await db.collection( 'messages' ).insertMany( exitMessages );
+    }catch( err ){
+        return console.log( chalk.red( `${err.message}` ) );
+    }
+}
 
 app.get( '/participants', async( req, res ) => {
     try{
@@ -70,17 +98,19 @@ app.get( '/messages', async( req, res ) => {
 
 app.post( '/participants', async( req, res ) => {
     const {error, value} = userSchema.validate ( {name : req.body.name} );
+    const {name} = value;
 
-    if( error ){
-        res.status( 422 ).send( {message : error.details[0].message } );
+    if( error || !name ){
+        res.status( 422 ).send( {message : name ? error.details[0].message : 'Nome inválido' } );
         return;
     }
-    const {name} = value;
+    
+
     try{
         const participant = await db.collection( 'participants' ).findOne( {name} );
         if( participant ) return  res.status( 409 ).send( {message : 'Usuário já cadastrado'} );
     }catch( err ){
-        return res.send( err );
+        return res.send( err.message );
     }
 
     try{
@@ -130,7 +160,7 @@ app.post( '/messages', async( req, res ) => {
             return res.status( 422 ).send( {message : 'Você não está logado'} );
         }
     }catch( err ){
-        console.log( err );
+        console.log( err.message );
         return res.sendStatus( 500 );
     }
     
@@ -146,7 +176,7 @@ app.post( '/messages', async( req, res ) => {
         await db.collection( 'messages' ).insertOne( message );
         res.status( 201 ).send( {message : 'mensagem enviada'} );
     }catch( err ){
-        console.log( err );
+        console.log( err.message );
         return res.sendStatus( 500 );
     }
 } );
@@ -211,7 +241,7 @@ app.put( '/messages/:ID_DA_MENSAGEM', async( req, res ) => {
 
         if( !result.matchedCount ) return res.status( 404 ).send( {message : 'Mensagem não encontrada'} );
     }catch( err ){
-        return res.status( 500 ).send( err );
+        return res.status( 500 ).send( err.message );
     } 
     res.status( 200 ).send( {message : 'Mensagem atualizada'} );
 } );
@@ -228,50 +258,15 @@ app.delete( '/messages/:ID_DA_MENSAGEM', async( req, res ) => {
 
         const message = await db.collection( 'messages' ).findOne( {_id : new ObjectId( ID_DA_MENSAGEM )} );
         if( !message ) return res.status( 404 ).send( {message : 'Mensagem não encontrada'} );
-        if( message.from !== from ) return res.status( 401 ).send( {message : 'Este usuário não é não pode editar esta mensagem!'} );
+        if( message.from !== from ) return res.status( 401 ).send( {message : 'Este usuário não pode editar esta mensagem!'} );
 
         const result = await db.collection( 'messages' ).deleteOne( {_id : new ObjectId( ID_DA_MENSAGEM )} );
 
         if( !result.deletedCount ) return res.status( 404 ).send( {message : 'Mensagem não encontrada'} );
     }catch( err ){
-        return res.status( 500 ).send( err );
+        return res.status( 500 ).send( err.message );
     } 
     res.status( 200 ).send( {message : 'Mensagem deletada com sucesso'} );
 } );
-
-const keepLogin = setInterval( async () => {
-    const maxUpdateTime = 10000;  
-    const users = {offline : null};
-
-    try{
-        users.offline =  await db.collection( 'participants' ).find( { lastStatus: { $lt: Date.now() - maxUpdateTime } } ).toArray(); 
-    }catch( err ){
-        return console.log( chalk.red( `${err.message}` ) );
-    } 
-
-    if( !users.offline.length ) {
-        return console.log( chalk.blue( 'No offline users' ) );
-    }
-
-    users.offline.forEach( async ( { name } ) =>{
-
-        try{
-            await db.collection( 'participants' ).deleteOne( { name } );
-
-            const exitMessage ={
-                from: name,
-                to: 'Todos', 
-                text: 'sai da sala...', 
-                type: 'status', 
-                time: dayjs().format( 'HH:mm:ss' )
-            };
-            await db.collection( 'messages' ).insertOne( exitMessage );
-            console.log( chalk.red( `${name} foi removido pois estava offline` ) );
-        }catch( err ){
-            return console.log( chalk.red( `${err.message}` ) );
-        }
-    }
-    );
-}, 15000 );
 
 app.listen( PORT, () => console.log( `Server is running on ${chalk.green( `http://localhost:${PORT}` )}` ) );

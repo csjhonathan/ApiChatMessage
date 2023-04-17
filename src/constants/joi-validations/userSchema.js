@@ -4,7 +4,7 @@ import sanitize from 'sanitize-html';
 const userSchema = Joi.object( {
     name : Joi
         .string()
-        .custom( ( value, helpers ) => {
+        .custom( ( value ) => {
             const sanitizedName = sanitize( value, {
                 allowedTags: [],
                 allowedAttributes: {}

@@ -5,7 +5,7 @@ const messageSchema = Joi.object( {
     text : Joi
         .string()
         .required()
-        .custom( ( value, helpers ) => {
+        .custom( ( value ) => {
             const sanitizedMessage = sanitize( value, {
                 allowedTags: [],
                 allowedAttributes: {}
