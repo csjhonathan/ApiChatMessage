@@ -65,7 +65,6 @@ app.get( '/participants', async( req, res ) => {
 app.get( '/messages', async( req, res ) => {
     const USER = req.headers.user;
     const {limit} = req.query;
-    const publicTypes = ['message', 'status'];
 
     try{
         const participant = await db.collection( 'participants' ).findOne( {name : USER} );
@@ -75,12 +74,7 @@ app.get( '/messages', async( req, res ) => {
     }
 
     try{
-        const messages = await db.collection( 'messages' ).find().toArray();
-        const filteredMessages = messages.filter( ( message ) => {
-            if( USER === message.to || USER === message.from || message.to === 'Todos' || publicTypes.includes( message.type ) ){
-                return message;
-            }
-        } );
+        const filteredMessages = await db.collection( 'messages' ).find( { $or: [ { to : USER }  ,{ from : USER } , { to : 'Todos' }, { type : 'status' } , { type : 'message' } ] } ).toArray();
 
         if( !limit ){
             return res.send( filteredMessages );
