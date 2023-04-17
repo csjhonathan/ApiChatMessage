@@ -1,1 +1,1 @@
-# projeto13-batepapo-uol-api
+# API for a chat messaging app
